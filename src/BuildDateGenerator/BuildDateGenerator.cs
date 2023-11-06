@@ -11,7 +11,7 @@ namespace BuildDateGenerator;
 [Generator(LanguageNames.CSharp)]
 public partial class BuildDateGenerator : IIncrementalGenerator
 {
-    private static readonly string namespaceName = "BuildDateGenerator";
+    private static readonly string generatorName = "BuildDateGenerator";
     private static readonly string buildDateAttribute = "GenerateBuildDateAttribute";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -19,8 +19,8 @@ public partial class BuildDateGenerator : IIncrementalGenerator
         // Generate Attribute
         context.RegisterPostInitializationOutput(static context =>
         {
-            context.AddSource($"{namespaceName}.{buildDateAttribute}.cs", $$"""
-namespace {{namespaceName}};
+            context.AddSource($"{generatorName}.{buildDateAttribute}.cs", $$"""
+namespace {{generatorName}};
 
 using System;
 
@@ -33,19 +33,32 @@ internal sealed class {{buildDateAttribute}} : Attribute
 
         // SyntaxProvider
         var syntax = context.SyntaxProvider.ForAttributeWithMetadataName(
-            $"{namespaceName}.{buildDateAttribute}",
+            $"{generatorName}.{buildDateAttribute}",
             static (node, token) => true,
             static (context, token) => context)
             .Collect();
         context.RegisterSourceOutput(syntax, GenerateSource);
     }
 
-
     public static void GenerateSource(
         SourceProductionContext context,
         ImmutableArray<GeneratorAttributeSyntaxContext> sources)
     {
         var currentDateTime = DateTimeOffset.Now;
+
+        context.AddSource($"{generatorName}.cs", $$"""
+namespace {{generatorName}};
+
+public class BuildInfo
+{
+    /// <summary>
+    /// BuildDate
+    /// {{currentDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fffzzz")}}
+    /// </summary>
+    public static readonly DateTimeOffset Date = new DateTimeOffset({{currentDateTime.Ticks}}, TimeSpan.FromTicks({{currentDateTime.Offset.Ticks}}));
+}
+""");
+
         foreach (var source in sources)
         {
             var attributeSyntaxContext = source;
@@ -65,9 +78,8 @@ partial class {{sourceType}}
 {
     /// <summary>
     /// BuildDate
-    /// {{currentDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fffzzz")}}
     /// </summary>
-    public static readonly DateTimeOffset BuildDate = new DateTimeOffset({{currentDateTime.Ticks}}, TimeSpan.FromTicks({{currentDateTime.Offset.Ticks}}));
+    public static DateTimeOffset BuildDate => {{generatorName}}.BuildInfo.Date;
 }
 """);
             }
